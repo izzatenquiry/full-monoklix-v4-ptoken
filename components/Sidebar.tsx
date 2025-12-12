@@ -2,7 +2,7 @@
 import React from 'react';
 import { type View, type NavItem, type User, UserStatus, Language } from '../types';
 import {
-  ImageIcon, VideoIcon, SettingsIcon, BookOpenIcon, LogoutIcon, GalleryIcon, LogoIcon, XIcon, LibraryIcon, FileTextIcon, GraduationCapIcon, TrendingUpIcon, RobotIcon, MegaphoneIcon, DatabaseIcon, TelegramIcon, ShieldCheckIcon
+  ImageIcon, VideoIcon, SettingsIcon, HomeIcon, LogoutIcon, GalleryIcon, LogoIcon, XIcon, LibraryIcon, FileTextIcon, GraduationCapIcon, TrendingUpIcon, RobotIcon, MegaphoneIcon, DatabaseIcon, TelegramIcon, ShieldCheckIcon
 } from './Icons';
 import { APP_VERSION } from '../services/appConfig';
 import { getTranslations } from '../services/translations';
@@ -12,7 +12,7 @@ const getNavItems = (language: Language): NavItem[] => {
     // FIX: Remove the `language` argument from `getTranslations` call to match the function signature.
     const T = getTranslations().sidebar;
     return [
-        { id: 'home', label: T.home, description: T.homeDesc, section: 'main', icon: BookOpenIcon, isSpecial: true },
+        { id: 'home', label: T.home, description: T.homeDesc, section: 'main', icon: HomeIcon, isSpecial: true },
         { id: 'get-started', label: T.getStarted, section: 'main', icon: GraduationCapIcon },
         { id: 'ai-text-suite', label: T.aiContentIdea, section: 'free', icon: FileTextIcon },
         { id: 'ai-image-suite', label: T.aiImage, section: 'free', icon: ImageIcon },

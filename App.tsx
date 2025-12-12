@@ -10,7 +10,7 @@ import SettingsView from './components/views/SettingsView';
 import LoginPage from './LoginPage';
 import { GalleryView } from './components/views/GalleryView';
 import WelcomeAnimation from './components/WelcomeAnimation';
-import { RefreshCwIcon, TerminalIcon, SunIcon, MoonIcon, AlertTriangleIcon, CheckCircleIcon, XIcon, SparklesIcon } from './components/Icons';
+import { RefreshCwIcon, TerminalIcon, SunIcon, MoonIcon, AlertTriangleIcon, CheckCircleIcon, XIcon, SparklesIcon, MenuIcon } from './components/Icons';
 import { signOutUser, logActivity, getVeoAuthTokens, getSharedMasterApiKey, updateUserLastSeen, assignPersonalTokenAndIncrementUsage, saveUserPersonalAuthToken, updateUserProxyServer, getAvailableServersForUser, getDeviceOS, getServerUsageCounts } from './services/userService';
 import Spinner from './components/common/Spinner';
 import { loadData, saveData } from './services/indexedDBService';
@@ -259,8 +259,8 @@ const App: React.FC = () => {
   const isSuiteView = ['ai-text-suite', 'ai-image-suite', 'ai-video-suite', 'gallery', 'settings', 'admin-suite', 'ai-prompt-library-suite'].includes(activeView);
 
   return (
-    // Main App Container - Changed to h-screen to allow inner scrolling
-    <div className="flex h-screen font-sans selection:bg-brand-start selection:text-white relative overflow-hidden">
+    // Main App Container - Using dvh for better mobile viewport handling
+    <div className="flex h-screen sm:h-[100dvh] font-sans selection:bg-brand-start selection:text-white relative overflow-hidden">
         
         {/* Unified Navigation (Floating Rail/Bottom) */}
         <Navigation 
@@ -310,6 +310,15 @@ const App: React.FC = () => {
                             <RefreshCwIcon className="w-5 h-5" />
                         </button>
 
+                        {/* Console Log - Moved position */}
+                        <button
+                            onClick={() => setIsLogSidebarOpen(!isLogSidebarOpen)}
+                            className="p-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                        >
+                            <TerminalIcon className="w-5 h-5" />
+                        </button>
+
+                        {/* API Key Status - Moved position */}
                         <ApiKeyStatus 
                             activeApiKey={activeApiKey} 
                             veoTokenRefreshedAt={veoTokenRefreshedAt} 
@@ -319,11 +328,13 @@ const App: React.FC = () => {
                             onOpenChangeServerModal={() => setShowServerModal(true)}
                             language={language}
                         />
+
+                        {/* Menu Icon - Mobile Only */}
                         <button
-                            onClick={() => setIsLogSidebarOpen(!isLogSidebarOpen)}
-                            className="p-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                            onClick={() => setIsMenuOpen(true)}
+                            className="md:hidden p-2 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
                         >
-                            <TerminalIcon className="w-5 h-5" />
+                            <MenuIcon className="w-5 h-5" />
                         </button>
                     </div>
                 </div>
@@ -353,7 +364,7 @@ const App: React.FC = () => {
                 )}
                 
                 {/* View Content */}
-                <div className="animate-zoomIn w-full min-h-full pb-48 md:pb-0 h-full">
+                <div className="animate-zoomIn w-full min-h-full pb-48 md:pb-0">
                     {renderView()}
                 </div>
             </div>

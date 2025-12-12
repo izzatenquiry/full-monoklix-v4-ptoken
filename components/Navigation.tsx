@@ -2,7 +2,7 @@
 import React from 'react';
 import { type View, type User } from '../types';
 import { 
-    BookOpenIcon, 
+    HomeIcon, 
     ImageIcon, 
     VideoIcon, 
     FileTextIcon, 
@@ -28,7 +28,7 @@ interface NavigationProps {
 }
 
 const MAIN_NAV_ITEMS = [
-  { id: 'home', icon: BookOpenIcon, label: 'Home' },
+  { id: 'home', icon: HomeIcon, label: 'Home' },
   { id: 'ai-text-suite', icon: FileTextIcon, label: 'Text' },
   { id: 'ai-image-suite', icon: ImageIcon, label: 'Image' },
   { id: 'ai-video-suite', icon: VideoIcon, label: 'Video' },
@@ -44,7 +44,7 @@ const Navigation: React.FC<NavigationProps> = ({
     activeView, 
     setActiveView, 
     currentUser, 
-    onLogout,
+    onLogout, 
     isMenuOpen,
     setIsMenuOpen 
 }) => {
@@ -52,8 +52,8 @@ const Navigation: React.FC<NavigationProps> = ({
 
   // --- 2100 MOBILE FLOATING DOCK ---
   const MobileDock = () => (
-    <div className="md:hidden fixed bottom-6 left-4 right-4 z-50">
-      <div className="nav-capsule !bg-[#0a0a0a] rounded-full px-2 h-[4.5rem] flex items-center justify-between relative overflow-hidden border border-white/10 shadow-2xl">
+    <div className="md:hidden fixed bottom-8 left-4 right-4 z-50">
+      <div className="nav-capsule !bg-[#0a0a0a] rounded-2xl px-4 h-20 flex items-center justify-between relative overflow-hidden border border-white/10 shadow-2xl">
         {/* Subtle background glow inside dock */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-1 bg-gradient-to-r from-transparent via-brand-start to-transparent opacity-50 blur-sm"></div>
 
@@ -63,33 +63,18 @@ const Navigation: React.FC<NavigationProps> = ({
             <button
               key={item.id}
               onClick={() => setActiveView(item.id as View)}
-              className={`relative z-10 flex flex-col items-center justify-center w-full h-full transition-all duration-300 group ${
-                isActive ? '-translate-y-2' : ''
-              }`}
+              className={`relative z-10 flex flex-col items-center justify-center w-full h-full transition-all duration-300 group`}
             >
-              <div className={`p-2.5 rounded-full transition-all duration-300 ${
+              <div className={`flex items-center justify-center w-12 h-12 rounded-2xl transition-all duration-300 ${
                   isActive 
                   ? 'bg-gradient-to-br from-brand-start to-brand-end text-white shadow-[0_0_15px_rgba(74,108,247,0.5)] scale-110' 
-                  : 'text-neutral-400 group-hover:text-white'
+                  : 'text-neutral-500 hover:text-white hover:bg-white/5'
               }`}>
-                 <item.icon className="w-5 h-5" />
+                 <item.icon className="w-6 h-6" />
               </div>
-              {isActive && (
-                  <span className="absolute -bottom-3 text-[10px] font-bold text-white tracking-wide animate-zoomIn opacity-90">{item.label}</span>
-              )}
             </button>
           );
         })}
-        
-        {/* Menu Trigger */}
-        <button
-            onClick={() => setIsMenuOpen(true)}
-            className="relative z-10 flex flex-col items-center justify-center w-full h-full text-neutral-400"
-        >
-            <div className="p-2.5 rounded-full bg-white/5 border border-white/5">
-                <MenuIcon className="w-5 h-5" />
-            </div>
-        </button>
       </div>
     </div>
   );
@@ -118,7 +103,7 @@ const Navigation: React.FC<NavigationProps> = ({
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+            <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
                 <div className="text-[10px] font-bold text-brand-start uppercase tracking-[0.2em] mb-3 px-2">System Modules</div>
                 {SECONDARY_NAV_ITEMS.map((item) => (
                     <button
@@ -148,32 +133,32 @@ const Navigation: React.FC<NavigationProps> = ({
                         Admin Protocol
                     </button>
                 )}
-            </div>
 
-            {/* Drawer Footer */}
-            <div className="p-4 bg-black/20 backdrop-blur-md border-t border-white/5">
-                <div className="flex items-center gap-3 mb-4 p-3 rounded-2xl bg-white/5 border border-white/5">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-start to-brand-end p-[1px]">
-                        <div className="w-full h-full rounded-full bg-black overflow-hidden flex items-center justify-center">
-                             {currentUser.avatarUrl ? (
-                                <img src={currentUser.avatarUrl} alt="User" className="w-full h-full object-cover" />
-                            ) : (
-                                <UserIcon className="w-5 h-5 text-neutral-400" />
-                            )}
+                {/* Profile Section moved inside scrollable area to sit higher up - Reduced padding */}
+                <div className="pt-2 mt-2 border-t border-white/5">
+                    <div className="flex items-center gap-3 mb-4 p-3 rounded-2xl bg-white/5 border border-white/5">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-start to-brand-end p-[1px]">
+                            <div className="w-full h-full rounded-full bg-black overflow-hidden flex items-center justify-center">
+                                 {currentUser.avatarUrl ? (
+                                    <img src={currentUser.avatarUrl} alt="User" className="w-full h-full object-cover" />
+                                ) : (
+                                    <UserIcon className="w-5 h-5 text-neutral-400" />
+                                )}
+                            </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-white truncate">{currentUser.fullName || currentUser.username}</p>
+                            <p className="text-[10px] text-brand-start uppercase tracking-wider">{currentUser.status}</p>
                         </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-white truncate">{currentUser.fullName || currentUser.username}</p>
-                        <p className="text-[10px] text-brand-start uppercase tracking-wider">{currentUser.status}</p>
-                    </div>
+                    <button 
+                        onClick={onLogout}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-red-500/10 text-red-400 border border-red-500/20 font-semibold text-xs uppercase tracking-wider hover:bg-red-500/20 transition-all"
+                    >
+                        <LogoutIcon className="w-4 h-4" />
+                        Disconnect
+                    </button>
                 </div>
-                <button 
-                    onClick={onLogout}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-red-500/10 text-red-400 border border-red-500/20 font-semibold text-xs uppercase tracking-wider hover:bg-red-500/20 transition-all"
-                >
-                    <LogoutIcon className="w-4 h-4" />
-                    Disconnect
-                </button>
             </div>
         </div>
     </>

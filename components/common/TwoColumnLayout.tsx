@@ -14,7 +14,7 @@ const TwoColumnLayout: React.FC<TwoColumnLayoutProps> = ({ leftPanel, rightPanel
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-auto lg:h-full">
       {/* Left Panel: Controls */}
-      <div className="bg-white dark:bg-neutral-900 p-6 rounded-lg shadow-sm flex flex-col gap-4 overflow-y-auto pr-2 custom-scrollbar">
+      <div className="bg-white dark:bg-neutral-900 p-6 rounded-lg shadow-sm flex flex-col gap-4 lg:overflow-y-auto pr-2 custom-scrollbar">
         {leftPanel}
       </div>
       {/* Right Panel: Results */}

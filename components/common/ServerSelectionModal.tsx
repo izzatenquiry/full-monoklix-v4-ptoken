@@ -27,7 +27,7 @@ const ServerSelectionModal: React.FC<ServerSelectionModalProps> = ({ isOpen, onC
         setSelected(url);
         onServerChanged();
         onClose();
-        window.location.reload(); // Refresh to ensure all services pick up the new server
+        // Removed window.location.reload() to prevent redirection to login
     };
 
     if (!isOpen) return null;
