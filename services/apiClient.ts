@@ -1,10 +1,8 @@
+
 import { addLogEntry } from './aiLogService';
 import { type User } from '../types';
 import { supabase } from './supabaseClient';
 import { PROXY_SERVER_URLS } from './serverConfig';
-
-// Default fallback servers from config
-const FALLBACK_SERVERS = PROXY_SERVER_URLS;
 
 export const getVeoProxyUrl = (): string => {
   if (window.location.hostname === 'localhost') {
@@ -14,8 +12,8 @@ export const getVeoProxyUrl = (): string => {
   if (userSelectedProxy) {
       return userSelectedProxy;
   }
-  // Default if nothing selected
-  return 'https://veox.monoklix.com';
+  // Default if nothing selected - Use a known active server (s1)
+  return 'https://s1.monoklix.com';
 };
 
 export const getImagenProxyUrl = (): string => {
@@ -26,15 +24,15 @@ export const getImagenProxyUrl = (): string => {
   if (userSelectedProxy) {
       return userSelectedProxy;
   }
-  return 'https://gemx.monoklix.com';
+  return 'https://s1.monoklix.com';
 };
 
-const getPersonalToken = (): { token: string; createdAt: string; } | null => {
+const getPersonalTokenLocal = (): { token: string; createdAt: string; } | null => {
     try {
         const userJson = localStorage.getItem('currentUser');
         if (userJson) {
             const user = JSON.parse(userJson);
-            if (user && user.personalAuthToken) {
+            if (user && user.personalAuthToken && typeof user.personalAuthToken === 'string' && user.personalAuthToken.trim().length > 0) {
                 return { token: user.personalAuthToken, createdAt: 'personal' };
             }
         }
@@ -44,26 +42,47 @@ const getPersonalToken = (): { token: string; createdAt: string; } | null => {
     return null;
 };
 
-// Helper to get tokens from the shared pool based on service type
-const getSharedTokensFromSession = (serviceType: 'veo' | 'imagen'): { token: string; createdAt: string }[] => {
+// Fallback: Fetch fresh token from DB if missing locally
+const getFreshPersonalTokenFromDB = async (): Promise<string | null> => {
     try {
-        // UPDATED: Always use 'veoAuthTokens' as the unified source for shared tokens.
-        // The Imagen specific pool is deprecated.
-        const key = 'veoAuthTokens';
-        const tokensJSON = sessionStorage.getItem(key);
-        if (tokensJSON) {
-            const parsed = JSON.parse(tokensJSON);
-            if (Array.isArray(parsed)) {
-                // Sort by newest first
-                return parsed.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-            }
+        const userJson = localStorage.getItem('currentUser');
+        if (!userJson) {
+            console.warn('[API Client] No currentUser in localStorage');
+            return null;
+        }
+        
+        const user = JSON.parse(userJson);
+        if (!user || !user.id) {
+            console.warn('[API Client] User object invalid or missing ID');
+            return null;
+        }
+
+        console.log(`[API Client] Fetching token for user ${user.id} from DB...`);
+        const { data, error } = await supabase
+            .from('users')
+            .select('personal_auth_token')
+            .eq('id', user.id)
+            .single();
+            
+        if (error) {
+            console.error('[API Client] Supabase error fetching token:', error);
+            return null;
+        }
+
+        if (data && data.personal_auth_token) {
+            // Update local storage to prevent future fetches
+            const updatedUser = { ...user, personalAuthToken: data.personal_auth_token };
+            localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+            console.log('[API Client] Refreshed personal token from DB and updated localStorage.');
+            return data.personal_auth_token;
+        } else {
+            console.warn('[API Client] DB query returned no token (null/empty).');
         }
     } catch (e) {
-        console.warn(`Failed to parse tokens from session:`, e);
+        console.error("[API Client] Exception refreshing token from DB", e);
     }
-    return [];
+    return null;
 };
-
 
 const getCurrentUserInternal = (): User | null => {
     try {
@@ -80,13 +99,7 @@ const getCurrentUserInternal = (): User | null => {
     return null;
 };
 
-// --- EXECUTE REQUEST WITH ROBUST FAILOVER ---
-
-interface RequestAttempt {
-    token: string;
-    serverUrl: string;
-    source: 'Specific' | 'Personal' | 'Pool';
-}
+// --- EXECUTE REQUEST (STRICT PERSONAL TOKEN ONLY) ---
 
 export const executeProxiedRequest = async (
   relativePath: string,
@@ -111,151 +124,103 @@ export const executeProxiedRequest = async (
   
   if (isGenerationRequest) {
     if (onStatusUpdate) onStatusUpdate('Queueing...');
-    await supabase.rpc('request_generation_slot', { cooldown_seconds: 10, server_url: currentServerUrl });
+    try {
+        await supabase.rpc('request_generation_slot', { cooldown_seconds: 10, server_url: currentServerUrl });
+    } catch (slotError) {
+        console.warn('Slot request failed, proceeding anyway:', slotError);
+    }
     if (onStatusUpdate) onStatusUpdate('Processing...');
   }
   
-  // 2. Build Attempt Strategy List
-  let attempts: RequestAttempt[] = [];
-  const usedAttempts = new Set<string>(); // To prevent duplicate token+server pairs
+  // 2. Resolve Token
+  let finalToken = specificToken;
+  let sourceLabel: 'Specific' | 'Personal' = 'Specific';
 
-  const addAttempt = (attempt: RequestAttempt) => {
-      const key = `${attempt.token.slice(-6)}@${attempt.serverUrl}`;
-      if (!usedAttempts.has(key)) {
-          attempts.push(attempt);
-          usedAttempts.add(key);
-      }
-  };
-
-  const personal = getPersonalToken();
-
-  if (specificToken) {
-      // SCENARIO A: Strict Mode (Health Check or multi-step process)
-      // This path is for internal processes that require a specific token to be used on a specific server.
-      const sourceLabel = (personal && personal.token === specificToken) ? 'Personal' : 'Specific';
-      addAttempt({ token: specificToken, serverUrl: currentServerUrl, source: sourceLabel });
-  } else if (personal) {
-      // SCENARIO B: Personal Token Only Mode
-      // If a user has a personal token, we ONLY try that token on the current server. No failover, no pool.
-      console.log(`[API Client] Personal Token mode activated. Using only user's token.`);
-      addAttempt({ token: personal.token, serverUrl: currentServerUrl, source: 'Personal' });
-  } else {
-      // SCENARIO C: Hybrid "Bulletproof" Mode (for users WITHOUT a personal token)
-      console.log(`[API Client] Hybrid mode activated. User has no personal token.`);
-      const allSharedTokens = getSharedTokensFromSession(serviceType);
-      const newestPoolTokens = allSharedTokens.slice(0, 10);
-      const shuffledPool = [...newestPoolTokens].sort(() => 0.5 - Math.random());
-
-      // PHASE 1: Try on Current (or Overridden) Server with Pool
-      shuffledPool.forEach(t => {
-          addAttempt({ token: t.token, serverUrl: currentServerUrl, source: 'Pool' });
-      });
-
-      // PHASE 2: Try on Backup Servers (Only if NOT overriding server)
-      if (!overrideServerUrl) {
-          const otherServers = FALLBACK_SERVERS.filter(s => s !== currentServerUrl);
-          const backupServers = [...otherServers].sort(() => 0.5 - Math.random()).slice(0, 2);
-
-          backupServers.forEach(backupServer => {
-              shuffledPool.slice(0, 3).forEach(t => {
-                  addAttempt({ token: t.token, serverUrl: backupServer, source: 'Pool' });
-              });
-          });
+  if (!finalToken) {
+      // Step A: Check Local Storage
+      const personalLocal = getPersonalTokenLocal();
+      if (personalLocal) {
+          finalToken = personalLocal.token;
+          sourceLabel = 'Personal';
+      } 
+      
+      // Step B: If local missing, check Database
+      if (!finalToken) {
+          const freshToken = await getFreshPersonalTokenFromDB();
+          if (freshToken) {
+              finalToken = freshToken;
+              sourceLabel = 'Personal';
+          }
       }
   }
 
+  if (!finalToken) {
+      console.error(`[API Client] Authentication failed. No token found in LocalStorage or DB.`);
+      throw new Error(`Authentication failed: No Personal Token found. Please go to Settings > Token & API and set your token.`);
+  }
 
-  if (attempts.length === 0) {
-      throw new Error(`No authentication tokens found. Please claim a token in Settings.`);
+  // 3. Log
+  if (!isStatusCheck && sourceLabel === 'Personal') {
+      // console.log(`[API Client] Using Personal Token: ...${finalToken.slice(-6)}`);
   }
 
   const currentUser = getCurrentUserInternal();
-  let lastError: any = new Error("Unknown error");
-
-  // 3. Execute the Strategy Loop
-  for (let i = 0; i < attempts.length; i++) {
-      const attempt = attempts[i];
-      const isLastAttempt = i === attempts.length - 1;
+  
+  // 4. Execute
+  try {
+      const endpoint = `${currentServerUrl}/api/${serviceType}${relativePath}`;
       
+      const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${finalToken}`,
+              'x-user-username': currentUser?.username || 'unknown',
+          },
+          body: JSON.stringify(requestBody),
+      });
+
+      let data;
+      const textResponse = await response.text();
       try {
-          const endpoint = `${attempt.serverUrl}/api/${serviceType}${relativePath}`;
-          // console.log(`[API Client] Attempt ${i + 1}/${attempts.length} | ${attempt.source} Token | Server: ${attempt.serverUrl}`);
-
-          const response = await fetch(endpoint, {
-              method: 'POST',
-              headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${attempt.token}`,
-                  'x-user-username': currentUser?.username || 'unknown',
-              },
-              body: JSON.stringify(requestBody),
-          });
-
-          let data;
-          const textResponse = await response.text();
-          try {
-              data = JSON.parse(textResponse);
-          } catch {
-              data = { error: { message: `Proxy returned non-JSON (${response.status})` } };
-          }
-
-          if (!response.ok) {
-              const status = response.status;
-              let errorMessage = data.error?.message || data.message || `API call failed (${status})`;
-              const lowerMsg = errorMessage.toLowerCase();
-
-              if (status === 400 || lowerMsg.includes('safety') || lowerMsg.includes('blocked')) {
-                  console.warn(`[API Client] 🛑 Non-retriable error (${status}). Prompt issue.`);
-                  // ADDED: Include status code in error message for easier detection downstream
-                  throw new Error(`[${status}] ${errorMessage}`);
-              }
-              
-              // console.warn(`[API Client] ⚠️ Attempt ${i + 1} failed (${status}). Trying next...`);
-              if (isLastAttempt) throw new Error(errorMessage);
-              continue;
-          }
-
-          if (!isStatusCheck) {
-              console.log(`✅ [API Client] Success using ${attempt.source} token on ${attempt.serverUrl}`);
-          }
-          return { data, successfulToken: attempt.token, successfulServerUrl: attempt.serverUrl };
-
-      } catch (error) {
-          lastError = error;
-          const errMsg = error instanceof Error ? error.message : String(error);
-          
-          // UPDATED: Check for [400] pattern
-          const isSafetyError = errMsg.includes('[400]') || errMsg.toLowerCase().includes('safety') || errMsg.toLowerCase().includes('blocked');
-
-          if (isSafetyError) {
-              // Safety errors should just bubble up to the UI without aggressive logging
-              throw error;
-          }
-
-          if (isLastAttempt) {
-              if (isSafetyError) {
-                  console.warn(`⚠️ [API Client] Process stopped due to safety/bad request: ${errMsg}`);
-              } else {
-                  // console.error(`❌ [API Client] All ${attempts.length} attempts exhausted.`);
-              }
-              
-              if (!specificToken) {
-                  // Only log real system errors to DB/State, not user prompt errors
-                  if (!isSafetyError) {
-                      addLogEntry({ 
-                          model: logContext, 
-                          prompt: `Failed after ${attempts.length} attempts`, 
-                          output: errMsg, 
-                          tokenCount: 0, 
-                          status: 'Error', 
-                          error: errMsg 
-                      });
-                  }
-              }
-              throw lastError;
-          }
+          data = JSON.parse(textResponse);
+      } catch {
+          data = { error: { message: `Proxy returned non-JSON (${response.status}): ${textResponse.substring(0, 100)}` } };
       }
-  }
 
-  throw lastError;
+      if (!response.ok) {
+          const status = response.status;
+          let errorMessage = data.error?.message || data.message || `API call failed (${status})`;
+          const lowerMsg = errorMessage.toLowerCase();
+
+          // Check for hard errors
+          if (status === 400 || lowerMsg.includes('safety') || lowerMsg.includes('blocked')) {
+              console.warn(`[API Client] 🛑 Non-retriable error (${status}). Prompt issue.`);
+              throw new Error(`[${status}] ${errorMessage}`);
+          }
+          
+          throw new Error(errorMessage);
+      }
+
+      if (!isStatusCheck) {
+          console.log(`✅ [API Client] Success using ${sourceLabel} token on ${currentServerUrl}`);
+      }
+      return { data, successfulToken: finalToken, successfulServerUrl: currentServerUrl };
+
+  } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      const isSafetyError = errMsg.includes('[400]') || errMsg.toLowerCase().includes('safety') || errMsg.toLowerCase().includes('blocked');
+
+      if (!specificToken && !isSafetyError && !isStatusCheck) {
+          addLogEntry({ 
+              model: logContext, 
+              prompt: `Failed using ${sourceLabel} token`, 
+              output: errMsg, 
+              tokenCount: 0, 
+              status: 'Error', 
+              error: errMsg 
+          });
+      }
+      throw error;
+  }
 };

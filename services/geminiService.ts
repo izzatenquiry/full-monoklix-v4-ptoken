@@ -358,11 +358,7 @@ export const generateVideo = async (
     const selectedServer = sessionStorage.getItem('selectedProxyServer') || undefined;
 
     // We make a single attempt. `attemptVideoGeneration` will call `executeProxiedRequest`,
-    // which already has the correct logic:
-    // - If a personal token is provided (as `specificToken`), it will use ONLY that.
-    // - If no token is provided, `executeProxiedRequest` will check for a personal token itself.
-    //   If it doesn't find one, it will use the hybrid pool.
-    // This simplifies the logic here and centralizes the token strategy in apiClient.ts.
+    // which now strictly enforces Personal Token usage.
     try {
         addLogEntry({ model, prompt, output: 'Attempting video generation...', tokenCount: 0, status: "Success" });
         return await attemptVideoGeneration(prompt, model, aspectRatio, resolution, image, personalToken, selectedServer, onStatusUpdate);
@@ -790,117 +786,77 @@ export const runApiHealthCheck = async (keys: { textKey?: string }): Promise<Hea
         console.error('   ❌ Text Generation FAILED:', getShortErrorMessage(e));
     }
     
-    // Get tokens for proxied services
-    const getTokens = (): { token: string; createdAt: string }[] => {
-        const tokensJSON = sessionStorage.getItem('veoAuthTokens');
-        if (tokensJSON) {
-            try {
-                const parsed = JSON.parse(tokensJSON);
-                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-            } catch (e) { console.error("Could not parse proxy tokens for health check", e); }
-        }
-        return [];
-    };
-    const proxyTokens = getTokens();
     const imagenModel = MODELS.imageGeneration;
     const videoModel = MODELS.videoGenerationDefault;
 
-    // 2. Imagen Generation Check
+    // 2. Imagen Generation Check (Strict Personal Token)
     console.log('2. Checking Imagen Generation (Proxy)...');
-    if (proxyTokens.length === 0) {
-        results.push({ service: 'Imagen Generation', model: imagenModel, status: 'degraded', message: 'Health check skipped. Auth Token not found.' });
-        console.warn('   ⚠️ Imagen check skipped: No Auth Token found.');
-    } else {
-        let success = false;
-        let lastError: any = null;
-        for (let i = 0; i < proxyTokens.length; i++) {
-            console.log(`   - Testing with token #${i + 1}...`);
-            try {
-                await generateImageWithImagen({
-                    prompt: 'test',
-                    config: {
-                        authToken: proxyTokens[i].token,
-                        aspectRatio: '1:1',
-                    }
-                }, undefined, true);
-                results.push({ 
-                    service: 'Imagen Generation', 
-                    model: imagenModel, 
-                    status: 'operational', 
-                    message: 'Initial request successful.',
-                    details: `(Using token #${i + 1})`
-                });
-                console.log(`     ✅ Token #${i + 1} OK`);
-                success = true;
-                break;
-            } catch (e) {
-                lastError = e;
-                console.error(`     ❌ Token #${i + 1} FAILED:`, getShortErrorMessage(e));
+    try {
+        // Pass authToken: undefined. apiClient will now strictly use personal token or fail.
+        await generateImageWithImagen({
+            prompt: 'test',
+            config: {
+                authToken: undefined, 
+                sampleCount: 1,
+                aspectRatio: '1:1',
             }
-        }
-        if (!success) {
-            results.push({ 
-                service: 'Imagen Generation', 
-                model: imagenModel, 
-                status: 'error', 
-                message: getShortErrorMessage(lastError),
-                details: '(All available tokens failed)'
-            });
-        }
+        }, undefined, true);
+        
+        results.push({ 
+            service: 'Imagen Generation', 
+            model: imagenModel, 
+            status: 'operational', 
+            message: 'System Operational',
+            details: 'Successfully generated test image via proxy.'
+        });
+        console.log(`   ✅ Imagen Generation OK`);
+    } catch (e: any) {
+        results.push({ 
+            service: 'Imagen Generation', 
+            model: imagenModel, 
+            status: 'error', 
+            message: getShortErrorMessage(e),
+            details: 'Connection attempt failed.'
+        });
+        console.error(`   ❌ Imagen Generation FAILED:`, getShortErrorMessage(e));
     }
 
-    // 3. VEO 3.1 Generation
+    // 3. VEO 3.1 Generation (Strict Personal Token)
     console.log('3. Checking VEO 3.1 Generation (Proxy)...');
-    if (proxyTokens.length === 0) {
-        results.push({ service: 'VEO 3.1 Generation', model: videoModel, status: 'degraded', message: 'Health check skipped. Auth Token not found.' });
-        console.warn('   ⚠️ VEO check skipped: No Auth Token not found.');
-    } else {
-        let success = false;
-        let lastError: any = null;
+    try {
+        // Pass authToken: undefined. apiClient will now strictly use personal token or fail.
+        const { operations: initialOperations } = await generateVideoWithVeo3({
+            prompt: 'test',
+            config: {
+                authToken: undefined,
+                aspectRatio: 'landscape',
+                useStandardModel: !videoModel.includes('fast'),
+            },
+        }, undefined, true);
 
-        for (let i = 0; i < proxyTokens.length; i++) {
-            const currentToken = proxyTokens[i].token;
-            console.log(`   - Testing with token #${i + 1}...`);
-            try {
-                const { operations: initialOperations } = await generateVideoWithVeo3({
-                    prompt: 'test',
-                    config: {
-                        authToken: currentToken,
-                        aspectRatio: 'landscape',
-                        useStandardModel: !videoModel.includes('fast'),
-                    },
-                }, undefined, true);
-
-                if (!initialOperations || initialOperations.length === 0 || (initialOperations[0] as any).error) {
-                    throw new Error((initialOperations[0] as any)?.error?.message || 'Initial request failed without specific error.');
-                }
-                
-                results.push({ 
-                    service: 'VEO 3.1 Generation', 
-                    model: videoModel, 
-                    status: 'operational', 
-                    message: 'Initial request successful.',
-                    details: `(Using token #${i + 1})`
-                });
-                console.log(`     ✅ Token #${i + 1} OK`);
-                success = true;
-                break;
-            } catch (e: any) {
-                lastError = e;
-                console.error(`     ❌ Token #${i + 1} FAILED:`, getShortErrorMessage(e));
-            }
+        if (!initialOperations || initialOperations.length === 0 || (initialOperations[0] as any).error) {
+            throw new Error((initialOperations[0] as any)?.error?.message || 'Initial request failed without specific error.');
         }
-
-        if (!success) {
-            results.push({ 
-                service: 'VEO 3.1 Generation', 
-                model: videoModel, 
-                status: 'error', 
-                message: getShortErrorMessage(lastError),
-                details: '(All available tokens failed)'
-            });
-        }
+        
+        results.push({ 
+            service: 'VEO 3.1 Generation', 
+            model: videoModel, 
+            status: 'operational', 
+            message: 'System Operational',
+            details: 'Successfully initiated video generation via proxy.'
+        });
+        console.log(`   ✅ VEO Generation OK`);
+    } catch (e: any) {
+        results.push({ 
+            service: 'VEO 3.1 Generation', 
+            model: videoModel, 
+            status: 'error', 
+            message: getShortErrorMessage(e),
+            details: 'Connection attempt failed.'
+        });
+        console.error(`   ❌ VEO Generation FAILED:`, getShortErrorMessage(e));
     }
+
     console.log('--- Health Check Complete ---');
     return results;
 };
