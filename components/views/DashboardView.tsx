@@ -102,13 +102,13 @@ const DashboardView: React.FC<DashboardViewProps> = ({ currentUser, navigateTo }
         </div>
       </div>
 
-      {/* Main Content Stack */}
-      <div className="flex flex-col gap-8">
+      {/* Main Content Split Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
         
-        {/* Welcome Video Section (Restored) */}
+        {/* Left Panel: Welcome Video */}
         {content?.mainVideoUrl && (
-            <div className="w-full animate-zoomIn" style={{ animationDelay: '50ms' }}>
-                <div className="nav-capsule p-1 rounded-3xl overflow-hidden shadow-2xl border border-white/10 relative group">
+            <div className="w-full animate-zoomIn h-full" style={{ animationDelay: '50ms' }}>
+                <div className="nav-capsule p-1 rounded-3xl overflow-hidden shadow-2xl border border-white/10 relative group h-full">
                     <div className="relative aspect-video w-full bg-black rounded-[1.2rem] overflow-hidden">
                         <iframe 
                             src={content.mainVideoUrl} 
@@ -122,8 +122,8 @@ const DashboardView: React.FC<DashboardViewProps> = ({ currentUser, navigateTo }
             </div>
         )}
 
-        {/* Action Modules */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+        {/* Right Panel: Action Modules (2x2 Grid) */}
+        <div className="grid grid-cols-2 gap-4 md:gap-6 w-full">
             <QuickActionCard 
                 title="Image Gen" 
                 desc="Flux / Imagen Engine" 

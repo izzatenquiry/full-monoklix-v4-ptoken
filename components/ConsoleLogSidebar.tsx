@@ -73,7 +73,7 @@ const ConsoleLogSidebar: React.FC<ConsoleLogSidebarProps> = ({ isOpen, onClose }
                     <div className="p-2 bg-brand-start/10 rounded-lg">
                         <TerminalIcon className="w-5 h-5 text-brand-start" />
                     </div>
-                    GENERATION STATUS
+                    
                 </h2>
                 <div className="flex gap-2">
                     <button 
