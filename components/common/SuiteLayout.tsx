@@ -10,7 +10,7 @@ interface SuiteLayoutProps {
 
 const SuiteLayout: React.FC<SuiteLayoutProps> = ({ title, subtitle, icon: Icon, children }) => {
     return (
-        <div className="w-full max-w-[1600px] mx-auto h-auto lg:h-full flex flex-col md:pb-6 relative">
+        <div className="w-full max-w-[1600px] mx-auto flex flex-col md:pb-6 relative">
             {/* Header */}
             <div className="flex-shrink-0 mb-8 px-2 mt-4 animate-zoomIn">
                 <div className="flex items-center gap-4">
@@ -29,12 +29,12 @@ const SuiteLayout: React.FC<SuiteLayoutProps> = ({ title, subtitle, icon: Icon, 
             </div>
 
             {/* Content Container - Holo Card */}
-            {/* Changed from h-full to h-auto on mobile, lg:h-full on desktop to support page scroll on mobile and app-like feel on desktop */}
-            <div className="flex-1 holo-card p-6 flex flex-col relative z-10 animate-zoomIn h-auto lg:h-full lg:overflow-hidden" style={{ animationDelay: '100ms' }}>
+            {/* UPDATED: Removed fixed h-full and overflow-hidden to allow content to expand */}
+            <div className="flex-1 holo-card p-6 flex flex-col relative z-10 animate-zoomIn" style={{ animationDelay: '100ms' }}>
                 {/* Subtle grid pattern overlay */}
                 <div className="absolute inset-0 pointer-events-none opacity-5" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
                 
-                <div className="relative z-10 h-full flex flex-col">
+                <div className="relative z-10 flex flex-col h-full">
                     {children}
                 </div>
             </div>

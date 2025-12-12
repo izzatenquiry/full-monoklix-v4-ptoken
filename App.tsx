@@ -281,9 +281,6 @@ const App: React.FC = () => {
   
   if (isShowingWelcome) return <WelcomeAnimation onAnimationEnd={() => { setIsShowingWelcome(false); setActiveView('home'); }} />;
 
-  // Determine if the current view should have a fixed desktop layout (Suite) or scrollable page (Home)
-  const isSuiteView = ['ai-text-suite', 'ai-image-suite', 'ai-video-suite', 'gallery', 'settings', 'admin-suite', 'ai-prompt-library-suite'].includes(activeView);
-
   return (
     // Main App Container - Using dvh for better mobile viewport handling
     <div className="flex h-screen sm:h-[100dvh] font-sans selection:bg-brand-start selection:text-white relative overflow-hidden">
@@ -367,8 +364,8 @@ const App: React.FC = () => {
             </header>
 
             {/* Main Content Area - Responsive scrolling behavior */}
-            {/* On desktop (lg), suite views are hidden overflow to allow internal panels to scroll. On mobile, page scrolls. */}
-            <div className={`flex-1 ${isSuiteView ? 'lg:overflow-hidden overflow-y-auto' : 'overflow-y-auto'} overflow-x-hidden p-4 md:p-8 custom-scrollbar`}>
+            {/* UPDATED: Removed fixed overflow to allow natural page scrolling on desktop */}
+            <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 custom-scrollbar">
                 {/* Announcement Banner (Holographic Marquee) */}
                 {activeView === 'home' && announcements.length > 0 && (
                      <div className="mb-6 mx-auto max-w-[1600px] w-full bg-brand-start/10 border border-brand-start/20 text-white p-2 rounded-xl shadow-[0_0_15px_rgba(74,108,247,0.2)] flex items-center gap-3 animate-zoomIn relative overflow-hidden group">
